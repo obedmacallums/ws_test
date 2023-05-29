@@ -13,13 +13,14 @@
     <div class="p-2">
         <input type="text"
             class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            id="input_ws">
+            id="input_ws"
+            default="127.0.0.1:9635">
         <br>
         <button id="bconnect" onclick="connect()"
             class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-4 rounded-full">Conectar</button>
         <button id="bdisconnect" onclick="disconnect()"
             class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-4 rounded-full">Desconectar</button>
-        <button id="bclean" onclick="clean()"
+        <button id="bclean" onclick="clean_table()"
             class="bg-transparent hover:bg-blue-500 text-blue-700 font-semibold hover:text-white py-1 px-4 border border-blue-500 hover:border-transparent rounded-full">Limpiar</button>
         <br>
         <br>
@@ -35,100 +36,90 @@
             </table>
         </div>
     </div>
-
-
-
-
 </body>
 
 <script>
     let reconnect = false;
     let homeSocket;
     let reconnectInterval = 5000;
-    const bconnect = document.getElementById("bconnect");
-    const bdisconnect = document.getElementById("bdisconnect");
-    const css_dis = "bg-blue-500 text-white font-bold py-1 px-4 opacity-50 cursor-not-allowed rounded-full";
-    const css_act = "bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-4 rounded-full";
-    bdisconnect.className = css_dis;
-
-
+    let time_out
+    document.getElementById("input_ws").value = "ws://127.0.0.1:9635"
+    const button_connect = document.getElementById("bconnect");
+    const button_disconnect = document.getElementById("bdisconnect");
+    const css_deactivate = "bg-blue-500 text-white font-bold py-1 px-4 opacity-50 cursor-not-allowed rounded-full";
+    const css_active = "bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-4 rounded-full";
+    button_disconnect.className = css_deactivate;
 
     function connect() {
         let url = document.getElementById("input_ws").value;
-        console.log("try: ", url);
-
-
-        bconnect.className = css_dis;
-        bdisconnect.className = css_act;
+        button_connect.className = css_deactivate;
+        button_disconnect.className = css_active;
         homeSocket = new WebSocket(url)
 
         homeSocket.onopen = function (e) {
             console.log("Connection established!");
+            reconnect = true;
         };
 
-        homeSocket.onmessage = function (e) {
-            console.log("Message received: ", e.data);
-            let data = JSON.parse(e.data)
+        homeSocket.addEventListener("message", (event) => {
+            let data = JSON.parse(event.data)
             console.log(data);
             update_table(data);
-        };
+
+        });
 
         homeSocket.onclose = function () {
-            if (event.wasClean) {
-                console.error('WebSocket connection closed by user');
-            } else {
-                console.error('WebSocket connection closed due to unexpected error');
-
-                if (reconnect) {
-                    console.log('Reconnecting in ' + reconnectInterval + 'ms...');
-                    setTimeout(() => { connect() }, reconnectInterval);
-                }
+            console.error('WebSocket connection closed due to unexpected error');
+            if (reconnect) {
+                console.log('Reconnecting in ' + reconnectInterval + 'ms...');
+                time_out = setTimeout(() => { connect() }, reconnectInterval);
             }
         };
         homeSocket.onerror = function (e) {
             console.error('WebSocket connection failed error');
+            button_connect.className = css_active;
+            button_disconnect.className = css_deactivate;
+            if (reconnect) {
+                console.log('Reconnecting in ' + reconnectInterval + 'ms...');
+                time_out = setTimeout(() => { connect() }, reconnectInterval);
+            }
         }
     }
 
     function disconnect() {
-        bconnect.className = css_act;
-        bdisconnect.className = css_dis;
-        console.log("Desconectando");
-        homeSocket.close()
-        homeSocket = null;
+        button_connect.className = css_active;
+        button_disconnect.className = css_deactivate;
         reconnect = false;
+        removeEventListener("message", homeSocket)
+        console.log("disconnecting");
+        homeSocket.close()
+        homeSocket = null
     }
 
     function update_table(jsonData) {
         var tablaBody = document.getElementById("tabla-body");
         tablaBody.innerHTML = "";
-        for (var propiedad in jsonData) {
-            if (propiedad == "satelliteView") continue;
-
-            if (jsonData.hasOwnProperty(propiedad)) {
-                var fila = document.createElement("tr");
-                fila.className = "border-b border-gray-200 dark:border-gray-700";
-
-                var celdaPropiedad = document.createElement("td");
-                celdaPropiedad.className = "px-6 py-1 bg-gray-50 dark:bg-gray-800";
-                celdaPropiedad.textContent = propiedad;
-                fila.appendChild(celdaPropiedad);
-
-                var celdaValor = document.createElement("td");
-                celdaValor.className = "px-6 py-1 bg-gray-50 dark:bg-gray-800";
-                celdaValor.textContent = jsonData[propiedad];
-                fila.appendChild(celdaValor);
-
-                tablaBody.appendChild(fila);
-            }
-        }
+        for (var property in jsonData) {
+            if (property == "satelliteView") continue;
+            if (jsonData.hasOwnProperty(property)) {
+                var row = document.createElement("tr");
+                row.className = "border-b border-gray-200 dark:border-gray-700";
+                var item_property = document.createElement("td");
+                item_property.className = "px-6 py-1 bg-gray-50 dark:bg-gray-800";
+                item_property.textContent = property;
+                row.appendChild(item_property);
+                var item_value = document.createElement("td");
+                item_value.className = "px-6 py-1 bg-gray-50 dark:bg-gray-800";
+                item_value.textContent = jsonData[property];
+                row.appendChild(item_value);
+                tablaBody.appendChild(row);
+            }}
     }
 
-    function clean() {
+    function clean_table() {
         var tablaBody = document.getElementById("tabla-body");
         tablaBody.innerHTML = "";
     }
-
 </script>
 
 </html>
